@@ -1,0 +1,55 @@
+# =========================
+# Python & Flask Backend
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+.flaskenv
+
+# =========================
+# Machine Learning & Data
+# =========================
+# Ignore the massive image datasets (8,000+ images is too big for Git)
+dataset/train/
+dataset/test/
+dataset/Ai_generated_dataset/
+dataset/real_dataset/
+
+# Ignore cached feature matrices and large pickle models
+output/*.npz
+models/*.pkl
+
+# (Optional) You can keep output/results.json if you want to track your metrics over time, 
+# otherwise uncomment the next line to ignore all outputs:
+# output/
+
+# =========================
+# React & Node (Frontend)
+# =========================
+frontend/node_modules/
+frontend/build/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# IDEs & OS Files
+# =========================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+node_modules
