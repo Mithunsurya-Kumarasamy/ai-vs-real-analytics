@@ -25,6 +25,8 @@ import pickle
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from joblib import Parallel, delayed
+import multiprocessing
 
 # ── Sklearn ──────────────────────────────────────────────────────────────────
 from sklearn.linear_model import LogisticRegression
@@ -80,16 +82,16 @@ def load_dataset(root: Path):
     Expects:
       dataset/
         train/
-          AI/   *.jpg
+          FAKE/   *.jpg
           Real/ *.jpg
         test/
-          AI/
+          FAKE/
           Real/
     """
     print("\n[1] Loading dataset …")
     records = []
     for split in ["train", "test"]:
-        for label in ["AI", "Real"]:
+        for label in ["FAKE", "Real"]:
             folder = root / split / label
             if not folder.exists():
                 print(f"  ⚠ Missing: {folder}")
@@ -107,34 +109,48 @@ def load_dataset(root: Path):
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. FEATURE EXTRACTION
 # ─────────────────────────────────────────────────────────────────────────────
+# --- HELPER FUNCTION FOR PARALLEL PROCESSING ---
+def _process_single_image(row):
+    try:
+        from feature_extraction import extract_all_features
+        feats = extract_all_features(row["path"])
+        label_val = 1 if row["label"] == "FAKE" else 0
+        return feats, label_val, row["split"], None
+    except Exception as e:
+        return None, None, None, f"{row['path']}: {e}"
+
+# --- UPDATED MULTI-CORE FEATURE EXTRACTION ---
 def build_feature_matrix(df: pd.DataFrame, cache_file: str = "output/features.npz"):
-    """Extract or load cached features."""
+    """Extract or load cached features using all CPU cores."""
     if os.path.exists(cache_file):
         print(f"\n[2] Loading cached features from {cache_file}")
         data = np.load(cache_file, allow_pickle=True)
         return data["X"], data["y"], data["splits"]
 
-    print("\n[2] Extracting features …")
+    cores = multiprocessing.cpu_count()
+    print(f"\n[2] Extracting features using {cores} CPU cores in parallel …")
+    
+    # Run the feature extraction on all cores simultaneously
+    results = Parallel(n_jobs=-1, batch_size=100)(
+        delayed(_process_single_image)(row) for _, row in df.iterrows()
+    )
+
     X_list, y_list, splits_list = [], [], []
     failed = 0
 
-    for i, row in df.iterrows():
-        try:
-            feats = extract_all_features(row["path"])
-            X_list.append(feats)
-            y_list.append(1 if row["label"] == "AI" else 0)
-            splits_list.append(row["split"])
-        except Exception as e:
+    # Unpack the parallel results
+    for feats, label, split, err in results:
+        if err:
             failed += 1
-            if failed <= 5:
-                print(f"  ✗ {row['path']}: {e}")
-
-        if (i + 1) % 500 == 0:
-            print(f"  … {i + 1}/{len(df)} processed")
+        else:
+            X_list.append(feats)
+            y_list.append(label)
+            splits_list.append(split)
 
     X = np.array(X_list, dtype=np.float32)
     y = np.array(y_list, dtype=np.int8)
     splits = np.array(splits_list)
+    
     np.savez(cache_file, X=X, y=y, splits=splits)
     print(f"  Feature matrix: {X.shape}  |  Failed: {failed}")
     return X, y, splits
@@ -284,8 +300,9 @@ def train_logistic_regression(X_train, y_train, X_test, y_test, cv):
     # Hyperparameter search
     param_grid = {
         "C": [0.001, 0.01, 0.1, 1, 10, 100],
-        "penalty": ["l1", "l2"],
-        "solver": ["liblinear"]
+        "penalty": ["l2"],
+        "solver": ["lbfgs"],
+        "max_iter":[2000]
     }
     base_lr = LogisticRegression(max_iter=1000, random_state=SEED)
     gs = GridSearchCV(base_lr, param_grid, cv=cv, scoring="roc_auc",
@@ -456,6 +473,7 @@ def main():
 
     # ── Load & extract ───────────────────────────────────────────────────────
     df = load_dataset(DATA_ROOT)
+
     if df.empty:
         print("\n⚠  No images found. Please place the Kaggle dataset at ./dataset/")
         print("   Expected structure: dataset/train/AI/*.jpg  dataset/train/Real/*.jpg")
@@ -478,6 +496,18 @@ def main():
 
     # ── Preprocess ───────────────────────────────────────────────────────────
     X_tr_s, X_te_s, X_tr_p, X_te_p, scaler, pca = preprocess(X_train_raw, X_test_raw)
+
+    # ── Memory Flush ─────────────────────────────────────────────────────────
+    import gc
+    try:
+        # Delete massive unscaled arrays that are no longer needed
+        del X
+        del X_train_raw
+        del X_test_raw
+        del df
+    except NameError:
+        pass
+    gc.collect()
 
     # ── Train models ─────────────────────────────────────────────────────────
     lr_model,  lr_results  = train_logistic_regression(X_tr_p, y_train, X_te_p, y_test, cv)
@@ -526,7 +556,6 @@ def main():
     print(f" Results saved → {out_path}")
     print(f"{'=' * 60}\n")
     return results
-
 
 if __name__ == "__main__":
     main()

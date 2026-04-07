@@ -4,9 +4,9 @@ import { BarChart, Bar, LineChart, Line, ScatterChart, Scatter, RadarChart, Rada
 // ── Simulated results (mirrors what ml_pipeline.py produces) ─────────────────
 const SIMULATED = {
   eda: {
-    n_samples: 8000, n_features: 191,
-    class_distribution: { AI: 4010, Real: 3990 },
-    class_balance_ratio: 0.5013,
+    n_samples: 120745, n_features: 191,
+    class_distribution: { AI: 60000, Real: 60745 },
+    class_balance_ratio: 0.4969,
     top_discriminative_features: [
       { feature: "fft_hf_ratio",      effect_size: 2.14 },
       { feature: "noise_kurt",         effect_size: 1.87 },
@@ -200,7 +200,6 @@ export default function App() {
     { id: "overview",  label: "Overview" },
     { id: "models",    label: "Models" },
     { id: "features",  label: "Features" },
-    { id: "diagnosis", label: "Diagnostics" },
     { id: "predict",   label: "Predict" },
   ];
 
@@ -291,7 +290,7 @@ export default function App() {
             <div style={{ width: 34, height: 34, borderRadius: 8, background: "linear-gradient(135deg,#4da6ff,#4caf82)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>⟠</div>
             <div>
               <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.02em" }}>AI vs Real — Analytics</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>Predictive analytics dashboard · 8,000 images · 191 features</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>Predictive analytics dashboard · 1,20,745 images · 191 features</div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -309,38 +308,23 @@ export default function App() {
         {tab === "overview" && (
           <>
             <div style={{ ...st.grid4, marginBottom: 24 }}>
-              <MetCard label="Total Images" value="8,000" sub="4,010 AI · 3,990 Real" color="#4da6ff" />
+              <MetCard label="Total Images" value="1,20,745" sub="60,000 AI · 60,745 Real" color="#4da6ff" />
               <MetCard label="Features" value="191" sub="After PCA: ~87 components" color="#4caf82" />
               <MetCard label="Best AUC" value="0.978" sub="Random Forest" color="#e07b39" />
               <MetCard label="CV Folds" value="5" sub="Stratified K-Fold" color="#a78bfa" />
             </div>
 
             <div style={st.grid2}>
-              {/* Radar comparison */}
-              <div style={st.card}>
-                <div style={st.cardTitle}>Model performance radar</div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <RadarChart data={radarData} margin={{ top: 0, right: 20, bottom: 0, left: 20 }}>
-                    <PolarGrid stroke={C.grid} />
-                    <PolarAngleAxis dataKey="metric" tick={{ fill: C.axis, fontSize: 11 }} />
-                    <Radar name="Logistic Regression" dataKey="LR" stroke={C.lr.stroke} fill={C.lr.fill} strokeWidth={1.5} />
-                    <Radar name="Decision Tree"       dataKey="DT" stroke={C.dt.stroke} fill={C.dt.fill} strokeWidth={1.5} />
-                    <Radar name="Random Forest"       dataKey="RF" stroke={C.rf.stroke} fill={C.rf.fill} strokeWidth={1.5} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Tooltip content={<TT />} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
 
               {/* Class distribution */}
               <div style={st.card}>
                 <div style={st.cardTitle}>Dataset class distribution</div>
                 <div style={{ display: "flex", gap: 24, marginBottom: 20, marginTop: 8 }}>
-                  {[["AI", 4010, "#4da6ff"], ["Real", 3990, "#4caf82"]].map(([lbl, n, col]) => (
+                  {[["AI", 60000, "#4da6ff"], ["Real", 60745, "#4caf82"]].map(([lbl, n, col]) => (
                     <div key={lbl} style={{ flex: 1, background: col + "15", border: `0.5px solid ${col}40`, borderRadius: 10, padding: "16px 20px" }}>
                       <div style={{ fontSize: 11, color: col, marginBottom: 4, fontWeight: 500 }}>{lbl}</div>
                       <div style={{ fontSize: 28, fontWeight: 600, fontFamily: "monospace", color: "#fff" }}>{n.toLocaleString()}</div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{(n / 8000 * 100).toFixed(1)}% of total</div>
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{(n / 120745 * 100).toFixed(1)}% of total</div>
                     </div>
                   ))}
                 </div>
@@ -413,26 +397,6 @@ export default function App() {
               <ConfMatrix cm={data.decision_tree.metrics.confusion_matrix} title="Decision Tree" color={C.dt.stroke} />
               <ConfMatrix cm={{ tn: 728, fp: 72, fn: 110, tp: 890 }} title="Random Forest" color={C.rf.stroke} />
             </div>
-
-            {/* Cross-validation scores */}
-            <div style={{ ...st.card, marginTop: 20 }}>
-              <div style={st.cardTitle}>Cross-validation AUC (5-fold stratified)</div>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={[1,2,3,4,5].map(fold => ({
-                  fold: `Fold ${fold}`,
-                  "Logistic Regression": data.logistic_regression.cv_results.roc_auc.scores[fold-1],
-                  "Decision Tree":       data.decision_tree.cv_results.roc_auc.scores[fold-1],
-                  "Random Forest":       [0.9734,0.9768,0.9748,0.9751,0.9754][fold-1],
-                }))} margin={{ left: -10 }}>
-                  <CartesianGrid stroke={C.grid} strokeDasharray="3 3" />
-                  <XAxis dataKey="fold" tick={{ fill: C.axis, fontSize: 11 }} />
-                  <YAxis tick={{ fill: C.axis, fontSize: 10 }} domain={[0.88, 1.0]} tickFormatter={v => v.toFixed(3)} />
-                  <Tooltip content={<TT />} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  {modelKeys.map(m => <Bar key={m} dataKey={m} fill={modelColors[m]} radius={[3,3,0,0]} />)}
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
           </>
         )}
 
@@ -470,40 +434,6 @@ export default function App() {
                 <div style={{ marginTop: 16, fontSize: 11, color: "rgba(255,255,255,0.35)", lineHeight: 1.6 }}>
                   Optimal depth=10. Shallow trees underfit; unconstrained trees overfit on noise artifacts.
                 </div>
-
-                <div style={{ ...st.cardTitle, marginTop: 20 }}>Regularization path (Logistic Regression)</div>
-                <ResponsiveContainer width="100%" height={160}>
-                  <LineChart data={data.logistic_regression.regularization_path} margin={{ left: -10 }}>
-                    <CartesianGrid stroke={C.grid} strokeDasharray="3 3" />
-                    <XAxis dataKey="C" scale="log" type="number" tick={{ fill: C.axis, fontSize: 10 }} tickFormatter={v => v} />
-                    <YAxis tick={{ fill: C.axis, fontSize: 10 }} domain={[0.75, 0.94]} tickFormatter={v => v.toFixed(3)} />
-                    <Tooltip content={<TT />} />
-                    <Line type="monotone" dataKey="mean_auc" stroke={C.lr.stroke} strokeWidth={2} dot={{ fill: C.lr.stroke, r: 4 }} name="CV AUC" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* LR Coefficients */}
-            <div style={{ ...st.card, marginTop: 20 }}>
-              <div style={st.cardTitle}>Logistic regression — top PCA component coefficients</div>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={data.logistic_regression.top_coefficients} margin={{ left: -10 }}>
-                  <CartesianGrid stroke={C.grid} strokeDasharray="3 3" />
-                  <XAxis dataKey="index" tickFormatter={v => `PC${v}`} tick={{ fill: C.axis, fontSize: 10 }} />
-                  <YAxis tick={{ fill: C.axis, fontSize: 10 }} tickFormatter={v => v.toFixed(2)} />
-                  <Tooltip content={<TT />} />
-                  <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" />
-                  <Bar dataKey="coef" name="Coefficient" radius={[3,3,0,0]}>
-                    {data.logistic_regression.top_coefficients.map((c, i) => (
-                      <Cell key={i} fill={c.coef > 0 ? "#4da6ff" : "#e07b39"} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-              <div style={{ display: "flex", gap: 16, marginTop: 10, fontSize: 11 }}>
-                <span style={{ color: "#4da6ff" }}>■ Positive → predicts AI</span>
-                <span style={{ color: "#e07b39" }}>■ Negative → predicts Real</span>
               </div>
             </div>
           </>

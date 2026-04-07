@@ -52,7 +52,7 @@ def extract_lbp_features(gray_image, radius=3, n_points=24):
     """Extract Local Binary Pattern histogram."""
     gray_uint8 = gray_image.astype(np.uint8)
     lbp = local_binary_pattern(gray_uint8, n_points, radius, method='uniform')
-    n_bins = int(lbp.max() + 1)
+    n_bins = n_points + 2
     hist, _ = np.histogram(lbp, density=True, bins=n_bins, range=(0, n_bins))
     return hist
 
